@@ -147,6 +147,7 @@ export default defineConfig(({ mode }) => {
   const useMock = env.VITE_USE_MOCK === 'true'
 
   return {
+    base: './',
     plugins: [vue(), mockPlugin(useMock)],
     resolve: {
       alias: {
