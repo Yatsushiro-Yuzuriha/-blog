@@ -3,13 +3,28 @@ import axios from 'axios'
 import { getItem, setItem, removeItem, clearAll } from '@/utils/storage'
 import { handleMockRequest } from '@/mock/handler'
 
-const MOCK_MODE = import.meta.env.VITE_USE_MOCK === 'true'
-
 const instance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 })
+
+// ===== Client-side Mock Adapter (production only) =====
+// In the production build on GitHub Pages, there is no backend server.
+// We replace axios's default adapter so ALL HTTP requests return mock data
+// without ever leaving the browser.
+// In development, the Vite mock plugin handles API interception at the server
+// level, so we leave the adapter untouched.
+if (import.meta.env.VITE_USE_MOCK === 'true' && import.meta.env.PROD) {
+  instance.defaults.adapter = function mockAdapter(config) {
+    const fullUrl = (instance.defaults.baseURL || '') + (config.url || '')
+    const [status, data] = handleMockRequest({ ...config, url: fullUrl })
+
+    return new Promise((resolve) => {
+      resolve({ data, status, statusText: status < 400 ? 'OK' : 'Error', headers: {}, config })
+    })
+  }
+}
 
 // ===== Request Interceptor =====
 instance.interceptors.request.use((config) => {
@@ -90,37 +105,3 @@ instance.interceptors.response.use(
 )
 
 export default instance
-
-// ===== Client-side Mock =====
-// When VITE_USE_MOCK=true, wraps axios methods to return mock data directly
-// without making actual HTTP requests. Works in both dev and production.
-if (MOCK_MODE) {
-  const _instance = instance
-  const methods = ['get', 'post', 'put', 'delete', 'patch']
-  methods.forEach((method) => {
-    const _orig = _instance[method]
-    _instance[method] = function (url, dataOrConfig, maybeConfig) {
-      const isBodyMethod = ['post', 'put', 'patch'].includes(method)
-      const config = isBodyMethod ? (maybeConfig || {}) : (dataOrConfig || {})
-      const body = isBodyMethod ? dataOrConfig : undefined
-      const fullUrl = (_instance.defaults.baseURL || '') + url
-
-      const mockConfig = {
-        url: fullUrl,
-        method: method.toUpperCase(),
-        params: config?.params,
-        data: body,
-        headers: config?.headers,
-      }
-      const [status, data] = handleMockRequest(mockConfig)
-
-      if (status >= 200 && status < 300) {
-        return Promise.resolve({ data, status, statusText: 'OK', headers: {}, config })
-      }
-      return Promise.reject({
-        response: { data, status, statusText: 'Error', headers: {}, config },
-        message: data?.message || 'Request failed',
-      })
-    }
-  })
-}
