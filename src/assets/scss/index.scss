@@ -1,0 +1,12 @@
+// ===== Global Styles Entry Point =====
+// Order matters: variables -> reset -> base -> components -> themes -> utilities
+
+@import 'variables';
+@import 'mixins';
+@import 'reset';
+@import 'typography';
+@import 'layout';
+@import 'transitions';
+@import 'code';
+@import 'dark';
+@import 'utilities';
