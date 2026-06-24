@@ -2,28 +2,10 @@
 import axios from 'axios'
 import { getItem, setItem, removeItem, clearAll } from '@/utils/storage'
 
-const useMock = import.meta.env.VITE_USE_MOCK === 'true'
-
-// Custom adapter for client-side mock (works without a backend server)
-function createMockAdapter() {
-  return async (config) => {
-    const { handleMockRequest } = await import('@/mock/handler')
-    const [status, data] = handleMockRequest(config)
-    if (status >= 200 && status < 300) {
-      return { data, status, statusText: 'OK', headers: {}, config }
-    }
-    return Promise.reject({
-      response: { data, status, statusText: 'Error', headers: {}, config },
-      message: data.message || 'Request failed',
-    })
-  }
-}
-
 const instance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
-  ...(useMock ? { adapter: createMockAdapter() } : {}),
 })
 
 // ===== Request Interceptor =====
@@ -105,3 +87,39 @@ instance.interceptors.response.use(
 )
 
 export default instance
+
+// ===== Client-side Mock (production only) =====
+// Wraps axios methods to return mock data without making actual HTTP requests.
+// Only active in production build when VITE_USE_MOCK=true (GitHub Pages).
+if (import.meta.env.VITE_USE_MOCK === 'true' && import.meta.env.PROD) {
+  const methods = ['get', 'post', 'put', 'delete', 'patch']
+  methods.forEach((method) => {
+    const _orig = instance[method]
+    instance[method] = function (url, dataOrConfig, maybeConfig) {
+      const isBodyMethod = ['post', 'put', 'patch'].includes(method)
+      const config = isBodyMethod ? (maybeConfig || {}) : (dataOrConfig || {})
+      const body = isBodyMethod ? dataOrConfig : undefined
+      const fullUrl = (instance.defaults.baseURL || '') + url
+
+      // Lazy-import mock handler on first request
+      return import('@/mock/handler').then(({ handleMockRequest }) => {
+        const mockConfig = {
+          url: fullUrl,
+          method: method.toUpperCase(),
+          params: config?.params,
+          data: body,
+          headers: config?.headers,
+        }
+        const [status, data] = handleMockRequest(mockConfig)
+
+        if (status >= 200 && status < 300) {
+          return { data, status, statusText: 'OK', headers: {}, config }
+        }
+        return Promise.reject({
+          response: { data, status, statusText: 'Error', headers: {}, config },
+          message: data?.message || 'Request failed',
+        })
+      })
+    }
+  })
+}
