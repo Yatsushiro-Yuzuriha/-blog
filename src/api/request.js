@@ -17,13 +17,21 @@ const instance = axios.create({
 // level, so we leave the adapter untouched.
 if (import.meta.env.VITE_USE_MOCK === 'true' && import.meta.env.PROD) {
   instance.defaults.adapter = function mockAdapter(config) {
-    // axios already prepends baseURL to config.url — no need to concatenate again.
-    // Replace baseURL with origin so handler's `new URL(url, baseURL)` parses correctly.
-    const [status, data] = handleMockRequest({ ...config, baseURL: window.location.origin })
-
-    return new Promise((resolve) => {
-      resolve({ data, status, statusText: status < 400 ? 'OK' : 'Error', headers: {}, config })
-    })
+    // axios already prepends baseURL to config.url — use it directly.
+    // Override baseURL with origin so handler can parse URLs correctly.
+    try {
+      const mockConfig = { ...config, baseURL: window.location.origin }
+      const [status, data] = handleMockRequest(mockConfig)
+      console.log('[MockAdapter]', config.method?.toUpperCase?.() || 'GET', config.url, '→', status)
+      return new Promise((resolve) => {
+        resolve({ data, status, statusText: status < 400 ? 'OK' : 'Error', headers: {}, config })
+      })
+    } catch (err) {
+      console.error('[MockAdapter] Error:', config.url, err)
+      return new Promise((resolve) => {
+        resolve({ data: { code: -1, message: err.message, data: null }, status: 500, statusText: 'Mock Error', headers: {}, config })
+      })
+    }
   }
 }
 
