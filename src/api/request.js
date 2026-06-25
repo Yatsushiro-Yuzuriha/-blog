@@ -16,15 +16,25 @@ const instance = axios.create({
 // In development, the Vite mock plugin handles API interception at the server
 // level, so we leave the adapter untouched.
 if (import.meta.env.VITE_USE_MOCK === 'true' && import.meta.env.PROD) {
+  // Build full URL including serialized params (our custom adapter must do this manually)
+  function buildMockUrl(config) {
+    let url = (instance.defaults.baseURL || '') + (config.url || '')
+    if (config.params && Object.keys(config.params).length > 0) {
+      const sp = new URLSearchParams()
+      Object.entries(config.params).forEach(([k, v]) => {
+        if (v != null) sp.append(k, v)
+      })
+      url += '?' + sp.toString()
+    }
+    return url
+  }
+
   instance.defaults.adapter = function mockAdapter(config) {
-    // axios already prepends baseURL to config.url — use it directly.
-    // Override baseURL with origin so handler can parse URLs correctly.
     try {
-      // axios does NOT prepend baseURL before calling custom adapter — do it manually
-      const fullUrl = (instance.defaults.baseURL || '') + (config.url || '')
+      const fullUrl = buildMockUrl(config)
       const mockConfig = { ...config, url: fullUrl, baseURL: window.location.origin }
       const [status, data] = handleMockRequest(mockConfig)
-      console.log('[MockAdapter]', config.method?.toUpperCase?.() || 'GET', fullUrl, '→', status)
+      console.log('[MockAdapter]', (config.method || 'GET').toUpperCase(), fullUrl, '→', status)
       return new Promise((resolve) => {
         resolve({ data, status, statusText: status < 400 ? 'OK' : 'Error', headers: {}, config })
       })
