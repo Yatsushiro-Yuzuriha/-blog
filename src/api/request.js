@@ -20,9 +20,11 @@ if (import.meta.env.VITE_USE_MOCK === 'true' && import.meta.env.PROD) {
     // axios already prepends baseURL to config.url — use it directly.
     // Override baseURL with origin so handler can parse URLs correctly.
     try {
-      const mockConfig = { ...config, baseURL: window.location.origin }
+      // axios does NOT prepend baseURL before calling custom adapter — do it manually
+      const fullUrl = (instance.defaults.baseURL || '') + (config.url || '')
+      const mockConfig = { ...config, url: fullUrl, baseURL: window.location.origin }
       const [status, data] = handleMockRequest(mockConfig)
-      console.log('[MockAdapter]', config.method?.toUpperCase?.() || 'GET', config.url, '→', status)
+      console.log('[MockAdapter]', config.method?.toUpperCase?.() || 'GET', fullUrl, '→', status)
       return new Promise((resolve) => {
         resolve({ data, status, statusText: status < 400 ? 'OK' : 'Error', headers: {}, config })
       })
