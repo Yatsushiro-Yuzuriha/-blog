@@ -208,6 +208,25 @@ export function handleMockRequest(config) {
       const article = articles.find((a) => a.id === parseInt(m.id))
       result = article ? ok(article) : fail('文章不存在')
     }
+
+    // Comments list (admin) — must be inside the GET block
+    if (!result && pathname === '/api/comments') {
+      const all = []
+      for (const articleId of Object.keys(comments)) {
+        for (const c of comments[articleId]) { all.push({ ...c, _articleId: articleId }) }
+      }
+      all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      const page = parseInt(query.page) || 1
+      const pageSize = parseInt(query.pageSize) || 20
+      result = ok(paginate(all, page, pageSize))
+    }
+
+    // Users list (admin) — must be inside the GET block
+    if (!result && pathname === '/api/users') {
+      const page = parseInt(query.page) || 1
+      const pageSize = parseInt(query.pageSize) || 10
+      result = ok(paginate(users.map(safeUser), page, pageSize))
+    }
   }
 
   // ---- Article create ----
@@ -298,25 +317,6 @@ export function handleMockRequest(config) {
       list.unshift(newComment)
       result = ok(newComment)
     }
-  }
-
-  // ---- Comments list (admin) ----
-  else if (pathname === '/api/comments' && method === 'GET') {
-    const all = []
-    for (const articleId of Object.keys(comments)) {
-      for (const c of comments[articleId]) { all.push({ ...c, _articleId: articleId }) }
-    }
-    all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    const page = parseInt(query.page) || 1
-    const pageSize = parseInt(query.pageSize) || 20
-    result = ok(paginate(all, page, pageSize))
-  }
-
-  // ---- Users list (admin) ----
-  else if (pathname === '/api/users' && method === 'GET') {
-    const page = parseInt(query.page) || 1
-    const pageSize = parseInt(query.pageSize) || 10
-    result = ok(paginate(users.map(safeUser), page, pageSize))
   }
 
   if (result) {
